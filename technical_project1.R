@@ -33,12 +33,11 @@ sas2020<- SAS_time_series["2016/2021"]
 plot(SAS_time_series[,"Close"], main = "SAS" )
 
 
-lines(R, type="h", on=NA)
+#par(mfrow=c(2,1))
 
+plot(sas2006[,"Close"], main = "SAS Closing Prices")
 
-plot(sas2006[,"Close"])
-
-plot(sas2020[,"Close"])
+plot(sas2020[,"Close"], main = "SAS Closing Prices")
 
 
 
@@ -73,36 +72,35 @@ write.csv(ret2020,"returns2020.csv")
 
 # plotting returns
 
-plot(ret2006,type = "h",main = "SAS daily returns (%) for 2006-2012 ",xlab = "Days",ylab = "return")
-abline(h = 0,col = "red", lty = 1,lwd = 2)
-abline(h = 2,col = "green",lwd =3)
+plot(ret2020[-c(1037,1192,1193)],type = "h",main = "SAS daily returns (%) for 2016-2021 ",xlab = "Days",ylab = "Returns (%)")
+abline(h = 2,col = "red", lty = 1,lwd = 2)
+legend(1,25,c("returns","threshold = 2"), col = c("black","red"),lty = 1:1)
+
 
 
 #### PEAKS OVER THRESHOLD ####
 
 
 ### Choosing appropriate mu ####
-## 2006 , mu = 8 seem appropriate
+## 2006 , mu = 4 seem appropriate
 u <- seq(0,10,length.out = 100)
 mean_excess <- numeric(length(u))
 for (i in 1:length(u)){
   exceedances <- ret2006[which(ret2006 > u[i])]
   mean_excess[i] <- mean(exceedances) - u[i]
 }
-plot(u,mean_excess,"l")
-abline()
+plot(u,mean_excess,"l",ylab = "Mean Excess")
+abline(v = 4, col = "red")
 
-# 2020, mu = 3 seems appropriate
+# 2020, mu = 2 seems appropriate
 u <- seq(0,10,length.out = 100)
 mean_excess <- numeric(length(u))
 for (i in 1:length(u)){
   exceedances <- ret2020[which(ret2020 > u[i])]
   mean_excess[i] <- mean(exceedances) - u[i]
 }
-plot(u,mean_excess,"l")
-
-
-#####
+plot(u,mean_excess,"l", ylab = "Mean Excess")
+abline(v = 2,col = "red")
 
 mu06 <- 4
 mu20 <- 2
@@ -110,24 +108,59 @@ mu20 <- 2
 excess2006 <- ret2006[which(ret2006 > mu06)]
 excess2020 <- ret2020[which(ret2020 > mu20)]
 
-N06 <- length(excess2006)
-N20 <- length(excess2020)
-
-n06 <- length(ret2006)
-n20 <- length(ret2020)
-
 #### GP #####
 
 gpfit06 <- gpd.fit(ret2006,mu06)
 gdp.diag(gpfit06)
 
-scale06 <- gpfit06$mle[1]
-shape06 <- gpfit06$mle[2]
-
-
 gpfit20 <- gpd.fit(ret2020,mu20)
 gpd.diag(gpfit20)
 
-x95 <- mu06 + (scale06/shape06)*((((N06/n06)*0.05)^(-shape06)) -1)
+# Value At Risk
+gp_quantile <- function(fit,quantiles){
+  scale <- fit$mle[1]
+  shape <- fit$mle[2]
+  rate <- fit$rate
+  mu <- fit$threshold
+  
+  q <- mu + (scale/shape)*((((rate)*(1-quantiles))^(-shape)) -1)
+  
+  return(q)
+}
 
-x99 <-  mu06 + (scale06/shape06)*((((N06/n06)*0.01)^(-shape06)) -1)
+# Expected Shortfall
+exp_short <- function(fit,quantiles,Var){
+  scale <- fit$mle[1]
+  shape <- fit$mle[2]
+  mu <- fit$threshold
+  
+  expected <- Var  + (scale + shape*(Var - mu))/(1-shape)
+  return(expected)
+}
+
+
+### Gaussian 
+
+
+gaussian06 <- fitdist(ret2006,"norm")
+
+gaussian20 <- fitdist(ret2020,"norm")  
+
+
+# Value at Risk
+function_quantile <- function(quantiles,Data){
+  mean <- Data$estimate[1]
+  sd <- Data$estimate[2]
+  q <- qnorm(quantiles,mean,sd)
+  return(q)
+}
+ 
+
+
+### Monthly BM VaR from PoT ####
+library("fExtremes")
+
+maximas06 <- blockMaxima(ret2006,20)
+
+maximas20 <- blockMaxima(ret2020,20)
+
