@@ -39,18 +39,47 @@ norm_quant06 <- qnorm(quantiles,mean = gaussian06$estimate[1], sd = gaussian06$e
 norm_quant20 <-  qnorm(quantiles,mean = gaussian20$estimate[1], sd = gaussian20$estimate[2])
 
 
+### fitting gev distribution to data 
+T = 20 
+C <- 1/T
+#2006
+gev06 <- gevFit(return06$x,block = T, type = "mle")
+
+xi_06 <-as.numeric(gev06@fit$par.ests[1])
+mu_06 <- as.numeric(gev06@fit$par.ests[2])
+beta_06 <-as.numeric(gev06@fit$par.ests[3])
+
+mu_new_06 <- mu_06 - ((1-C^(xi_06))*beta_06)/xi_06
+beta_new_06 <- C^(xi_06)*beta_06
+
+dailyVaR06 <- qgev(quantiles, xi = xi_06, mu = mu_new_06, beta = beta_new_06, lower.tail = TRUE)
+
+#2020
+gev20 <- gevFit(return20$x,block = T, type = "mle")
+
+xi_20 <-as.numeric(gev20@fit$par.ests[1])
+mu_20 <- as.numeric(gev20@fit$par.ests[2])
+beta_20 <-as.numeric(gev20@fit$par.ests[3])
+
+mu_new_20 <- mu_20 - ((1-C^(xi_20))*beta_20)/xi_20
+beta_new_20 <- C^(xi_20)*beta_20
+
+dailyVaR20 <- qgev(quantiles, xi = xi_20, mu = mu_new_20, beta = beta_new_20, lower.tail = TRUE)
+
+
+
 
 #### barplots
 
 ## 2006
-color.names <- c("blue","green","red")
-barplot(rbind(emp06_quantiles,norm_quant06,gpd_quantiles06$VaR),beside = T,ylim = c(0,35),col = color.names)
-legend("top",c("Empirical","Gaussian","GPD"), fill = color.names)
+color.names <- c("blue","green","red","black")
+barplot(rbind(emp06_quantiles,norm_quant06,gpd_quantiles06$VaR,dailyVaR06),beside = T,ylim = c(0,45),col = color.names)
+legend("top",c("Empirical","Gaussian","GPD","GEV"), fill = color.names)
 
 ## 2020 
-color.names <- c("blue","green","red")
-barplot(rbind(emp20_quantiles,norm_quant20,gpd_quantiles20$VaR),beside = T,ylim = c(0,100),col = color.names)
-legend("top",c("Empirical","Gaussian","GPD"), fill = color.names)
+color.names <- c("blue","green","red","black")
+barplot(rbind(emp20_quantiles,norm_quant20,gpd_quantiles20$VaR,dailyVaR20),beside = T,ylim = c(0,100),col = color.names)
+legend("top",c("Empirical","Gaussian","GPD","GPD"), fill = color.names)
 
 
 
@@ -139,3 +168,67 @@ backtesting_gpd <- function(training,testing,p){
   
   return(violations)  
 }
+
+
+
+backtesting_gev <- function(training,testing,p){
+  
+  T <- 20
+  C <- 1/T
+  
+  violations <- numeric(2)
+  violations[2] <- length(testing)*(1-p)
+  
+  total <- c(training,testing)
+  
+  GEV <- gevFit(total[1:length(training)], block = T)
+  
+  xi <-as.numeric(GEV@fit$par.ests[1])
+  mu <- as.numeric(GEV@fit$par.ests[2])
+  beta <-as.numeric(GEV@fit$par.ests[3])
+  
+  mu_new <- mu - ((1-C^(xi))*beta)/xi
+  beta_new <- C^(xi)*beta
+  
+  VAR <- qgev(p, xi = xi, mu = mu_new, beta = beta_new, lower.tail = TRUE)
+
+  if (total[length(training)+1] > VAR){
+    violations[1] <- violations[1] + 1
+  }
+  
+  for (i in 2:length(testing)){
+    GEV <- gevFit(total[i:(length(training)+(i-1))],block = T)
+    
+    xi <-as.numeric(GEV@fit$par.ests[1])
+    mu <- as.numeric(GEV@fit$par.ests[2])
+    beta <-as.numeric(GEV@fit$par.ests[3])
+    
+    mu_new <- mu - ((1-C^(xi))*beta)/xi
+    beta_new <- C^(xi)*beta
+    
+    VAR <- qgev(p, xi = xi, mu = mu_new, beta = beta_new, lower.tail = TRUE)
+    
+    value <- total[length(training)+i]
+    
+    if(value > VAR){
+      violations[1] <- violations[1] + 1
+    }
+    
+  }
+  
+  return(violations)  
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
