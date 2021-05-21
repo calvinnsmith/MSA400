@@ -15,7 +15,7 @@ b <- 4.59
 VaR_beta <- LOAN*DEFAULT_LOSSES*OBLIGORS*qbeta(alpha,a,b)
 
 #############################################
-################## TASK 2 ###################
+################## TASK 3 ###################
 #############################################
 library("extraDistr")
 
@@ -92,4 +92,44 @@ library(xtable)
 
 xtable(model1_var_es)
 xtable(model2_var_es)
+
+
+##################################################################
+################## TASK 3: MONTE CARLO SIMULATION ################
+##################################################################
+
+
+monte_carlo <- function(nsim,a,b,obligors,loan,default_losses){
+  L <- numeric(nsim)
+  for (j in 1:nsim){
+    Z <- rbeta(1,shape1 = a,shape2 = b)
+    U <- runif(obligors,0,1)
+    X <- numeric(obligors)
+    for (i in 1:obligors){
+      
+      if (U[i] <= Z){
+        X[i] <- 1
+      }
+      else{
+        X[i] <- 0
+      }
+    }
+    L[j] <- sum(X)*loan*default_losses
+  }
+  return(L)
+}
+
+n <- 100000
+
+L_model1 <- monte_carlo(n,a1,b1,OBLIGORS,LOAN,DEFAULT_LOSSES)
+MC_VaR_model1 <- quantile(L_model1,quantiles)
+
+
+L_model2 <- monte_carlo(n,a2,b2,OBLIGORS,LOAN,DEFAULT_LOSSES)
+MC_VaR_model2 <- quantile(L_model2,quantiles)
+
+
+
+
+
 
